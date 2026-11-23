@@ -1,0 +1,277 @@
+/* Ausgaben-Tracker: Aussehen der Seite */
+
+:root {
+  --bg: #eef1f5;
+  --panel: #ffffff;
+  --ink: #101828;
+  --mute: #5b6577;
+  --line: #d9dee7;
+  --acc: #1d4ed8;
+  --acc-ink: #ffffff;
+  --bad: #b42318;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+h1 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--mute);
+}
+
+h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.total {
+  font-size: clamp(2.6rem,9vw,4.6rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.03em;
+  margin: 6px 0 0;
+}
+
+.total small {
+  font-size: .35em;
+  font-weight: 600;
+  color: var(--mute);
+  letter-spacing: 0;
+  margin-right: .4em;
+}
+
+.nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+@media(min-width:900px) {
+  .grid {
+    grid-template-columns: 360px 1fr;
+  }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  min-width: 0;
+}
+
+label {
+  display: block;
+  font-size: .85rem;
+  color: var(--mute);
+  margin: 10px 0 4px;
+}
+
+input,select,button {
+  font: inherit;
+  color: inherit;
+}
+
+input,select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+button {
+  cursor: pointer;
+  padding: 9px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+button.primary {
+  background: var(--acc);
+  color: var(--acc-ink);
+  border-color: var(--acc);
+  font-weight: 600;
+  width: 100%;
+  margin-top: 14px;
+}
+
+button.ghost {
+  border-color: transparent;
+  color: var(--mute);
+  padding: 4px 8px;
+}
+
+button: focus-visible,input:focus-visible,select:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.row input {
+  flex: 1;
+}
+
+.charts {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+@media(min-width:640px) {
+  .charts {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.cv {
+  position: relative;
+  height: 260px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+  font-size: .92rem;
+}
+
+td.n,th.n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.empty {
+  color: var(--mute);
+  padding: 8px 0;
+}
+
+.err {
+  color: var(--bad);
+  font-size: .85rem;
+  min-height: 1.2em;
+  margin-top: 8px;
+}
+
+.stack {
+  display: grid;
+  gap: 16px;
+}
+
+.catlist {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 10px;
+  margin-bottom: 10px;
+}
+
+.catlist label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+  padding: 7px 0;
+  font-size: .95rem;
+  color: var(--ink);
+}
+
+.catlist input {
+  width: auto;
+}
+
+dialog {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 18px;
+  width: min(440px,92vw);
+}
+
+dialog: :backdrop {
+  background: rgba(0,0,0,.5);
+}
+
+dialog p {
+  margin: 0 0 14px;
+}
+
+.dlgbtns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+button.danger {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: var(--acc-ink);
+  font-weight: 600;
+}
+
+/* Hilfsklassen (ersetzen Inline-Styles im HTML) */
+.nav input { width: auto; }
+.wide { width: 100%; }
+.mt { margin-top: 10px; }
+.reset-row { margin: 6px 0 0; }
+.entries { margin-top: 16px; }
+
+.login { max-width: 420px; margin: 12vh auto 0; padding: 0 16px; }
+.user { color: var(--mute); font-size: .9rem; }
