@@ -4,7 +4,7 @@ const SUPABASE_KEY = "sb_publishable_lWUwFUhCBZbTe6KFyAEy5A_Q2kEgE0M";
 
 // Ausgaben-Tracker mit Supabase: Daten, Anzeige, Kategorien, Anmeldung
 
-/ ---------- Daten ----------
+// ---------- Daten ----------
 const DEFAULT_CATS = ["Wohnen","Krankenkasse","Steuern","Handy/Internet","Lebensmittel","Verpflegung auswärts","ÖV","Freizeit","Kleidung","Rücklagen","Abonnement","Versicherung"];
 const COLORS = ["#2563eb","#dc2626","#d97706","#7c3aed","#059669","#0891b2","#db2777","#65a30d","#64748b","#ea580c","#4f46e5","#0d9488"];
 let S = { exp: [], cats: DEFAULT_CATS.slice() };
@@ -33,6 +33,7 @@ const today = () => {
   const d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 };
+const monthStart = () => today().slice(0, 8) + "01";
 let month = today().slice(0, 7);
 let ch1, ch2;
 
@@ -137,6 +138,7 @@ $("f").addEventListener("submit", ev => {
   const amt = parseFloat($("amt").value), date = $("date").value, cat = $("cat").value;
   if (!(amt > 0)) return $("err").textContent = "Bitte einen Betrag grösser als 0 eingeben.";
   if (!date) return $("err").textContent = "Bitte ein Datum wählen.";
+  if (date > today() || date < monthStart()) return $("err").textContent = "Nur Daten im aktuellen Monat (" + monthStart().slice(0, 7) + ") bis heute sind erlaubt.";
   $("err").textContent = "";
   S.exp.push({ id: Date.now() + Math.random(), amt: Math.round(amt * 100) / 100, date, cat, note: $("note").value.trim() });
   save(); month = date.slice(0, 7);
@@ -148,15 +150,9 @@ $("addcat").onclick = () => {
   if (!n || S.cats.some(c => c.toLowerCase() === n.toLowerCase())) return;
   S.cats.push(n); save(); $("newcat").value = ""; fillCats(); $("cat").value = n; render();
 };
-// Monat wechseln: Datumsfeld springt in den gewählten Monat (aktueller Monat = heute, sonst der 1.)
-function setMonth(m) {
-  month = m;
-  $("date").value = m === today().slice(0, 7) ? today() : m + "-01";
-  render();
-}
-$("prev").onclick = () => setMonth(shift(month, -1));
-$("next").onclick = () => setMonth(shift(month, 1));
-$("month").onchange = e => { if (e.target.value) setMonth(e.target.value); };
+$("prev").onclick = () => { month = shift(month, -1); render(); };
+$("next").onclick = () => { month = shift(month, 1); render(); };
+$("month").onchange = e => { if (e.target.value) { month = e.target.value; render(); } };
 // Bestätigungsfenster: gibt true zurück, wenn der Benutzer bestätigt (Esc oder Abbrechen = false)
 function ask(title, text, yes) {
   return new Promise(res => {
@@ -198,6 +194,8 @@ async function enter(session) {
   try { await loadData(); } catch (e) { $("loginerr").textContent = "Daten laden fehlgeschlagen: " + e.message; return; }
   $("loginview").hidden = true; $("app").hidden = false;
   $("date").value = today();
+  $("date").min = monthStart();
+  $("date").max = today();
   fillCats(); render();
 }
 $("loginform").addEventListener("submit", async ev => {
