@@ -28,12 +28,7 @@ async function loadData() {
 const $ = id => document.getElementById(id);
 const chf = n => n.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const colorOf = c => COLORS[S.cats.indexOf(c) % COLORS.length] || COLORS[8];
-// Heutiges Datum nach lokaler Zeit (JJJJ-MM-TT)
-const today = () => {
-  const d = new Date();
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-};
-const monthStart = () => today().slice(0, 8) + "01";
+const today = () => new Date().toISOString().slice(0, 10);
 let month = today().slice(0, 7);
 let ch1, ch2;
 
@@ -138,7 +133,6 @@ $("f").addEventListener("submit", ev => {
   const amt = parseFloat($("amt").value), date = $("date").value, cat = $("cat").value;
   if (!(amt > 0)) return $("err").textContent = "Bitte einen Betrag grösser als 0 eingeben.";
   if (!date) return $("err").textContent = "Bitte ein Datum wählen.";
-  if (date > today() || date < monthStart()) return $("err").textContent = "Nur Daten im aktuellen Monat (" + monthStart().slice(0, 7) + ") bis heute sind erlaubt.";
   $("err").textContent = "";
   S.exp.push({ id: Date.now() + Math.random(), amt: Math.round(amt * 100) / 100, date, cat, note: $("note").value.trim() });
   save(); month = date.slice(0, 7);
@@ -194,8 +188,6 @@ async function enter(session) {
   try { await loadData(); } catch (e) { $("loginerr").textContent = "Daten laden fehlgeschlagen: " + e.message; return; }
   $("loginview").hidden = true; $("app").hidden = false;
   $("date").value = today();
-  $("date").min = monthStart();
-  $("date").max = today();
   fillCats(); render();
 }
 $("loginform").addEventListener("submit", async ev => {
