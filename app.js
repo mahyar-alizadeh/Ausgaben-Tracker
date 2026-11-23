@@ -1,206 +1,374 @@
-// ---------- Zugangsdaten für Supabase  ----------
+// Zugangsdaten für Supabase. Es steht nur der öffentliche Schlüssel im Code, der geheime service_role-Schlüssel darf nie hier stehen.
 const SUPABASE_URL = "https://vzhacopmsznqmcfykhxn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_lWUwFUhCBZbTe6KFyAEy5A_Q2kEgE0M";
 
-// Ausgaben-Tracker mit Supabase: Daten, Anzeige, Kategorien, Anmeldung
+// Die 12 Kategorien, die jeder neue Benutzer am Anfang hat
+const STANDARD_KATEGORIEN = ["Wohnen", "Krankenkasse", "Steuern", "Handy/Internet", "Lebensmittel", "Verpflegung auswärts", "ÖV", "Freizeit", "Kleidung", "Rücklagen", "Abonnement", "Versicherung"];
 
-// ---------- Daten ----------
-const DEFAULT_CATS = ["Wohnen","Krankenkasse","Steuern","Handy/Internet","Lebensmittel","Verpflegung auswärts","ÖV","Freizeit","Kleidung","Rücklagen","Abonnement","Versicherung"];
-const COLORS = ["#2563eb","#dc2626","#d97706","#7c3aed","#059669","#0891b2","#db2777","#65a30d","#64748b","#ea580c","#4f46e5","#0d9488"];
-let S = { exp: [], cats: DEFAULT_CATS.slice() };
+// Farben für die Kategorien in den Diagrammen. Eine Kategorie hat immer die gleiche Farbe (je nach Platz in der Liste).
+const FARBEN = ["#2563eb", "#dc2626", "#d97706", "#7c3aed", "#059669", "#0891b2", "#db2777", "#65a30d", "#64748b", "#ea580c", "#4f46e5", "#0d9488"];
 
-// ---------- Supabase: Datenbank und Anmeldung ----------
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-let user = null;
+// Alle Daten des Benutzers: eine Liste mit Ausgaben und eine Liste mit Kategorien
+let daten = { ausgaben: [], kategorien: STANDARD_KATEGORIEN.slice() };
+let angemeldeterBenutzer = null;
+let gewaehlterMonat = heute().slice(0, 7);   // Format JJJJ-MM, am Anfang der aktuelle Monat
+let kreisDiagramm, balkenDiagramm;           // merken sich die Diagramme, damit sie neu gezeichnet werden können
 
-// Alle Daten (S) als ein JSON-Dokument in der Tabelle "daten" speichern. Row Level Security sorgt dafür, dass nur die eigene Zeile erreichbar ist.
-async function save() {
-  if (!user) return;
-  const { error } = await sb.from("daten").upsert({ user_id: user.id, inhalt: S, updated_at: new Date().toISOString() });
-  if (error) $("dataerr").textContent = "Speichern fehlgeschlagen: " + error.message;
+// Verbindung zu Supabase (Datenbank und Anmeldung)
+const verbindung = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ---------- 2. Hilfsfunktionen ----------
+
+// Kurzform, um ein Element der Seite über seine ID zu holen
+const holen = id => document.getElementById(id);
+
+// Zahl als Frankenbetrag formatieren, zum Beispiel 1850 wird zu 1'850.00
+const alsFranken = zahl => zahl.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Farbe einer Kategorie bestimmen
+const farbeVon = kategorie => FARBEN[daten.kategorien.indexOf(kategorie) % FARBEN.length];
+
+// Alle Beträge einer Liste von Ausgaben zusammenzählen
+const summeVon = liste => liste.reduce((summe, ausgabe) => summe + ausgabe.betrag, 0);
+
+// Alle Ausgaben eines Monats herausfiltern (das Datum beginnt mit JJJJ-MM)
+const ausgabenImMonat = monat => daten.ausgaben.filter(ausgabe => ausgabe.datum.startsWith(monat));
+
+// Heutiges Datum als JJJJ-MM-TT in lokaler Zeit (toISOString würde die UTC-Zeit liefern, die um einen Tag abweichen kann)
+function heute() {
+  const jetzt = new Date();
+  return jetzt.getFullYear() + "-" + String(jetzt.getMonth() + 1).padStart(2, "0") + "-" + String(jetzt.getDate()).padStart(2, "0");
 }
-async function loadData() {
-  const { data, error } = await sb.from("daten").select("inhalt").maybeSingle();
+
+// Einen Monat um einige Monate vor oder zurück verschieben, zum Beispiel ("2026-11", 1) ergibt "2026-12"
+function verschiebeMonat(monat, differenz) {
+  const [jahr, nummer] = monat.split("-").map(Number);
+  const ergebnis = new Date(jahr, nummer - 1 + differenz, 1);
+  return ergebnis.getFullYear() + "-" + String(ergebnis.getMonth() + 1).padStart(2, "0");
+}
+
+// Monat als Text schreiben, zum Beispiel "2026-11" wird zu "November 2026"
+function monatsname(monat) {
+  const [jahr, nummer] = monat.split("-").map(Number);
+  return new Date(jahr, nummer - 1, 1).toLocaleDateString("de-CH", { month: "long", year: "numeric" });
+}
+
+// ---------- 3. Speichern und Laden (Supabase) ----------
+
+// Speichert alle Daten als ein JSON-Dokument in der Tabelle "daten".
+// Die Row Level Security in Supabase sorgt dafür, dass jeder nur seine eigene Zeile sieht.
+async function speichern() {
+  if (!angemeldeterBenutzer) return;
+  const { error } = await verbindung.from("daten").upsert({ user_id: angemeldeterBenutzer.id, inhalt: daten });
+  if (error) holen("datenfehler").textContent = "Speichern fehlgeschlagen: " + error.message;
+}
+
+// Lädt die Daten des angemeldeten Benutzers aus Supabase.
+// Ältere Einträge verwenden englische Namen (exp, cats, amt, date, cat, note), deshalb werden beide Varianten gelesen.
+async function laden() {
+  const { data, error } = await verbindung.from("daten").select("inhalt").maybeSingle();
   if (error) throw error;
-  if (data && data.inhalt && Array.isArray(data.inhalt.exp) && Array.isArray(data.inhalt.cats)) S = data.inhalt;
+  const inhalt = data && data.inhalt;
+  const alteAusgaben = inhalt && (inhalt.ausgaben || inhalt.exp);
+  if (!alteAusgaben) return;
+  daten.kategorien = inhalt.kategorien || inhalt.cats || daten.kategorien;
+  daten.ausgaben = alteAusgaben.map(a => ({
+    id: a.id,
+    betrag: a.betrag ?? a.amt,
+    datum: a.datum || a.date,
+    kategorie: a.kategorie || a.cat,
+    notiz: a.notiz ?? a.note ?? ""
+  }));
 }
 
-const $ = id => document.getElementById(id);
-const chf = n => n.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const colorOf = c => COLORS[S.cats.indexOf(c) % COLORS.length] || COLORS[8];
-const today = () => new Date().toISOString().slice(0, 10);
-let month = today().slice(0, 7);
-let ch1, ch2;
+// ---------- 4. Anzeige ----------
 
-function shift(ym, d) {
-  const [y, m] = ym.split("-").map(Number);
-  const dt = new Date(y, m - 1 + d, 1);
-  return dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0");
-}
-const monthName = ym => { const [y, m] = ym.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString("de-CH", { month: "long", year: "numeric" }); };
-const inMonth = ym => S.exp.filter(e => e.date.startsWith(ym));
-const sum = a => a.reduce((s, e) => s + e.amt, 0);
+// Baut die Auswahlliste im Formular und die Liste im Löschfenster aus den aktuellen Kategorien neu auf
+function kategorienAnzeigen() {
+  const bisherGewaehlt = holen("kategorie").value;
+  holen("kategorie").innerHTML = "";
+  daten.kategorien.forEach(name => {
+    const option = document.createElement("option");
+    option.textContent = name;
+    holen("kategorie").appendChild(option);
+  });
+  if (daten.kategorien.includes(bisherGewaehlt)) holen("kategorie").value = bisherGewaehlt;
 
-// ---------- Anzeige ----------
-function fillCats() {
-  const cur = $("cat").value;
-  $("cat").innerHTML = "";
-  S.cats.forEach(c => { const o = document.createElement("option"); o.textContent = c; $("cat").appendChild(o); });
-  if (S.cats.includes(cur)) $("cat").value = cur;
-  // Auswahlliste zum Löschen (alle Kategorien, auch die Standard-Kategorien)
-  $("catlist").innerHTML = "";
-  S.cats.forEach(c => {
-    const l = document.createElement("label");
-    const cb = document.createElement("input"); cb.type = "checkbox"; cb.value = c;
-    l.appendChild(cb); l.appendChild(document.createTextNode(c));
-    $("catlist").appendChild(l);
+  holen("kategorienAuswahl").innerHTML = "";
+  daten.kategorien.forEach(name => {
+    const beschriftung = document.createElement("label");
+    const kaestchen = document.createElement("input");
+    kaestchen.type = "checkbox";
+    kaestchen.value = name;
+    beschriftung.appendChild(kaestchen);
+    beschriftung.appendChild(document.createTextNode(name));
+    holen("kategorienAuswahl").appendChild(beschriftung);
   });
 }
 
-function render() {
-  const list = inMonth(month).sort((a, b) => b.date.localeCompare(a.date));
-  $("month").value = month;
-  $("mlabel").textContent = "Ausgaben im " + monthName(month);
-  $("total").textContent = chf(sum(list));
-
-  // Summen pro Kategorie
-  const per = {};
-  list.forEach(e => { per[e.cat] = per[e.cat] || { n: 0, t: 0 }; per[e.cat].n++; per[e.cat].t += e.amt; });
-  const cats = Object.keys(per).sort((a, b) => per[b].t - per[a].t);
-  const total = sum(list);
-  $("sum").innerHTML = "";
-  if (!cats.length) $("sum").innerHTML = '<tr><td class="empty" colspan="4">Noch keine Ausgaben in diesem Monat.</td></tr>';
-  cats.forEach(c => {
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.innerHTML = '<span class="dot" style="background:' + colorOf(c) + '"></span>';
-    td.appendChild(document.createTextNode(c));
-    tr.appendChild(td);
-    [per[c].n, chf(per[c].t), Math.round(per[c].t / total * 100) + " %"].forEach(v => {
-      const d = document.createElement("td"); d.className = "n"; d.textContent = v; tr.appendChild(d);
-    });
-    $("sum").appendChild(tr);
-  });
-
-  // Einträge
-  $("list").innerHTML = "";
-  if (!list.length) $("list").innerHTML = '<tr><td class="empty" colspan="5">Keine Einträge. Erfasse links deine erste Ausgabe.</td></tr>';
-  list.forEach(e => {
-    const tr = document.createElement("tr");
-    [e.date.split("-").reverse().join("."), e.cat, e.note || ""].forEach(v => { const d = document.createElement("td"); d.textContent = v; tr.appendChild(d); });
-    const a = document.createElement("td"); a.className = "n"; a.textContent = chf(e.amt); tr.appendChild(a);
-    const x = document.createElement("td"); x.className = "n";
-    const b = document.createElement("button"); b.className = "ghost"; b.textContent = "Löschen"; b.setAttribute("aria-label", "Eintrag löschen");
-    b.onclick = () => { S.exp = S.exp.filter(z => z.id !== e.id); save(); render(); };
-    x.appendChild(b); tr.appendChild(x);
-    $("list").appendChild(tr);
-  });
-
-  drawCharts(cats, per);
+// Erstellt eine Tabellenzelle mit Text (und wenn gewünscht mit einer CSS-Klasse)
+function zelleErstellen(text, klasse) {
+  const zelle = document.createElement("td");
+  zelle.textContent = text;
+  if (klasse) zelle.className = klasse;
+  return zelle;
 }
 
-function drawCharts(cats, per) {
-  const INK = "#101828", LINE = "#d9dee7", PANEL = "#ffffff";
-  Chart.defaults.color = INK;
-  Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
-  if (ch1) ch1.destroy(); if (ch2) ch2.destroy();
-  ch1 = new Chart($("c1"), {
+// Hauptfunktion der Anzeige: zeigt den gewählten Monat mit Gesamtsumme, Summen pro Kategorie, Einträgen und Diagrammen.
+// Sie wird nach jeder Änderung (Ausgabe erfassen, löschen, Monat wechseln) neu aufgerufen.
+function anzeigen() {
+  const ausgaben = ausgabenImMonat(gewaehlterMonat).sort((a, b) => b.datum.localeCompare(a.datum));
+  const gesamt = summeVon(ausgaben);
+  holen("monatswahl").value = gewaehlterMonat;
+  holen("monatstitel").textContent = "Ausgaben im " + monatsname(gewaehlterMonat);
+  holen("gesamtsumme").textContent = alsFranken(gesamt);
+
+  // Summe und Anzahl pro Kategorie berechnen
+  const proKategorie = {};
+  ausgaben.forEach(ausgabe => {
+    if (!proKategorie[ausgabe.kategorie]) proKategorie[ausgabe.kategorie] = { anzahl: 0, summe: 0 };
+    proKategorie[ausgabe.kategorie].anzahl++;
+    proKategorie[ausgabe.kategorie].summe += ausgabe.betrag;
+  });
+  // Nur Kategorien mit Ausgaben, die grösste Summe zuerst
+  const genutzteKategorien = Object.keys(proKategorie).sort((a, b) => proKategorie[b].summe - proKategorie[a].summe);
+
+  // Tabelle "Summen pro Kategorie"
+  holen("summentabelle").innerHTML = "";
+  if (genutzteKategorien.length === 0) {
+    holen("summentabelle").innerHTML = '<tr><td class="leer" colspan="4">Noch keine Ausgaben in diesem Monat.</td></tr>';
+  }
+  genutzteKategorien.forEach(name => {
+    const zeile = document.createElement("tr");
+    const namensZelle = document.createElement("td");
+    namensZelle.innerHTML = '<span class="punkt" style="background:' + farbeVon(name) + '"></span>';
+    namensZelle.appendChild(document.createTextNode(name));
+    zeile.appendChild(namensZelle);
+    const anteil = Math.round(proKategorie[name].summe / gesamt * 100);
+    zeile.appendChild(zelleErstellen(proKategorie[name].anzahl, "zahl"));
+    zeile.appendChild(zelleErstellen(alsFranken(proKategorie[name].summe), "zahl"));
+    zeile.appendChild(zelleErstellen(anteil + " %", "zahl"));
+    holen("summentabelle").appendChild(zeile);
+  });
+
+  // Tabelle mit den einzelnen Einträgen, jeder mit einem Löschen-Knopf
+  holen("eintragstabelle").innerHTML = "";
+  if (ausgaben.length === 0) {
+    holen("eintragstabelle").innerHTML = '<tr><td class="leer" colspan="5">Keine Einträge. Erfasse links deine erste Ausgabe.</td></tr>';
+  }
+  ausgaben.forEach(ausgabe => {
+    const zeile = document.createElement("tr");
+    zeile.appendChild(zelleErstellen(ausgabe.datum.split("-").reverse().join(".")));
+    zeile.appendChild(zelleErstellen(ausgabe.kategorie));
+    zeile.appendChild(zelleErstellen(ausgabe.notiz));
+    zeile.appendChild(zelleErstellen(alsFranken(ausgabe.betrag), "zahl"));
+
+    const loeschenKnopf = document.createElement("button");
+    loeschenKnopf.className = "unauffaellig";
+    loeschenKnopf.textContent = "Löschen";
+    loeschenKnopf.setAttribute("aria-label", "Eintrag löschen");
+    loeschenKnopf.onclick = () => {
+      daten.ausgaben = daten.ausgaben.filter(a => a.id !== ausgabe.id);
+      speichern();
+      anzeigen();
+    };
+    const knopfZelle = document.createElement("td");
+    knopfZelle.className = "zahl";
+    knopfZelle.appendChild(loeschenKnopf);
+    zeile.appendChild(knopfZelle);
+    holen("eintragstabelle").appendChild(zeile);
+  });
+
+  diagrammeZeichnen(genutzteKategorien, proKategorie);
+}
+
+// Zeichnet die zwei Diagramme mit Chart.js: ein Kreisdiagramm und ein gestapeltes Balkendiagramm
+function diagrammeZeichnen(genutzteKategorien, proKategorie) {
+  Chart.defaults.color = "#101828";
+  // Alte Diagramme zuerst entfernen, sonst legen sich die neuen darüber
+  if (kreisDiagramm) kreisDiagramm.destroy();
+  if (balkenDiagramm) balkenDiagramm.destroy();
+
+  // Kreisdiagramm: Verteilung der Ausgaben im gewählten Monat
+  kreisDiagramm = new Chart(holen("kreisdiagramm"), {
     type: "doughnut",
-    data: { labels: cats, datasets: [{ data: cats.map(c => +per[c].t.toFixed(2)), backgroundColor: cats.map(colorOf), borderColor: PANEL }] },
-    options: { maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } }, tooltip: { callbacks: { label: c => " CHF " + chf(c.parsed) } } } }
-  });
-  // Balkendiagramm: Verteilung auf die Kategorien in den letzten 6 Monaten (gestapelt)
-  const months = [5, 4, 3, 2, 1, 0].map(i => shift(month, -i));
-  const sets = S.cats.map(c => ({
-    label: c,
-    data: months.map(m => +sum(S.exp.filter(e => e.cat === c && e.date.startsWith(m))).toFixed(2)),
-    backgroundColor: colorOf(c)
-  })).filter(d => d.data.some(v => v > 0));
-  ch2 = new Chart($("c2"), {
-    type: "bar",
-    data: { labels: months.map(m => monthName(m).split(" ")[0].slice(0, 3)), datasets: sets },
+    data: {
+      labels: genutzteKategorien,
+      datasets: [{
+        data: genutzteKategorien.map(name => +proKategorie[name].summe.toFixed(2)),
+        backgroundColor: genutzteKategorien.map(farbeVon),
+        borderColor: "#ffffff"
+      }]
+    },
     options: {
       maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => " " + c.dataset.label + ": CHF " + chf(c.parsed.y) } } },
-      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: LINE } } }
+      plugins: {
+        legend: { position: "bottom", labels: { boxWidth: 10 } },
+        tooltip: { callbacks: { label: punkt => " CHF " + alsFranken(punkt.parsed) } }
+      }
+    }
+  });
+
+  // Balkendiagramm: Verteilung auf die Kategorien in den letzten 6 Monaten (gestapelt)
+  const monate = [5, 4, 3, 2, 1, 0].map(zurueck => verschiebeMonat(gewaehlterMonat, -zurueck));
+  const datensaetze = daten.kategorien.map(name => ({
+    label: name,
+    data: monate.map(monat => +summeVon(ausgabenImMonat(monat).filter(a => a.kategorie === name)).toFixed(2)),
+    backgroundColor: farbeVon(name)
+  })).filter(satz => satz.data.some(wert => wert > 0));
+
+  balkenDiagramm = new Chart(holen("balkendiagramm"), {
+    type: "bar",
+    data: {
+      labels: monate.map(monat => monatsname(monat).split(" ")[0].slice(0, 3)),
+      datasets: datensaetze
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: punkt => " " + punkt.dataset.label + ": CHF " + alsFranken(punkt.parsed.y) } }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, beginAtZero: true, grid: { color: "#d9dee7" } }
+      }
     }
   });
 }
 
-// ---------- Aktionen ----------
-$("f").addEventListener("submit", ev => {
-  ev.preventDefault();
-  const amt = parseFloat($("amt").value), date = $("date").value, cat = $("cat").value;
-  if (!(amt > 0)) return $("err").textContent = "Bitte einen Betrag grösser als 0 eingeben.";
-  if (!date) return $("err").textContent = "Bitte ein Datum wählen.";
-  $("err").textContent = "";
-  S.exp.push({ id: Date.now() + Math.random(), amt: Math.round(amt * 100) / 100, date, cat, note: $("note").value.trim() });
-  save(); month = date.slice(0, 7);
-  $("amt").value = ""; $("note").value = "";
-  render();
+// ---------- 5. Aktionen ----------
+
+// Formular "Ausgabe erfassen": prüft Betrag und Datum, speichert die Ausgabe und springt in den Monat der Ausgabe
+holen("erfassungsformular").addEventListener("submit", ereignis => {
+  ereignis.preventDefault();
+  const betrag = parseFloat(holen("betrag").value);
+  const datum = holen("datum").value;
+  if (!(betrag > 0)) return holen("formularfehler").textContent = "Bitte einen Betrag grösser als 0 eingeben.";
+  if (!datum) return holen("formularfehler").textContent = "Bitte ein Datum wählen.";
+  holen("formularfehler").textContent = "";
+
+  daten.ausgaben.push({
+    id: Date.now() + Math.random(),
+    betrag: Math.round(betrag * 100) / 100,
+    datum: datum,
+    kategorie: holen("kategorie").value,
+    notiz: holen("notiz").value.trim()
+  });
+  speichern();
+  gewaehlterMonat = datum.slice(0, 7);
+  holen("betrag").value = "";
+  holen("notiz").value = "";
+  anzeigen();
 });
-$("addcat").onclick = () => {
-  const n = $("newcat").value.trim();
-  if (!n || S.cats.some(c => c.toLowerCase() === n.toLowerCase())) return;
-  S.cats.push(n); save(); $("newcat").value = ""; fillCats(); $("cat").value = n; render();
+
+// Eigene Kategorie hinzufügen (leere und doppelte Namen werden ignoriert)
+holen("kategorieHinzufuegen").onclick = () => {
+  const name = holen("neueKategorie").value.trim();
+  const schonVorhanden = daten.kategorien.some(k => k.toLowerCase() === name.toLowerCase());
+  if (!name || schonVorhanden) return;
+  daten.kategorien.push(name);
+  speichern();
+  holen("neueKategorie").value = "";
+  kategorienAnzeigen();
+  holen("kategorie").value = name;
+  anzeigen();
 };
-$("prev").onclick = () => { month = shift(month, -1); render(); };
-$("next").onclick = () => { month = shift(month, 1); render(); };
-$("month").onchange = e => { if (e.target.value) { month = e.target.value; render(); } };
-// Bestätigungsfenster: gibt true zurück, wenn der Benutzer bestätigt (Esc oder Abbrechen = false)
-function ask(title, text, yes) {
-  return new Promise(res => {
-    const d = $("confdlg");
-    let result = false;
-    $("conft").textContent = title; $("conftext").textContent = text; $("confyes").textContent = yes;
-    $("confyes").onclick = () => { result = true; d.close(); };
-    $("confno").onclick = () => d.close();
-    d.onclose = () => res(result);
-    d.showModal();
+
+// Monat wechseln: Das Datumsfeld springt in den gewählten Monat (aktueller Monat = heute, sonst der 1.).
+// So landet eine neue Ausgabe im Monat, den man gerade ansieht.
+function monatWechseln(monat) {
+  gewaehlterMonat = monat;
+  holen("datum").value = monat === heute().slice(0, 7) ? heute() : monat + "-01";
+  anzeigen();
+}
+holen("zurueck").onclick = () => monatWechseln(verschiebeMonat(gewaehlterMonat, -1));
+holen("vor").onclick = () => monatWechseln(verschiebeMonat(gewaehlterMonat, 1));
+holen("monatswahl").onchange = ereignis => {
+  if (ereignis.target.value) monatWechseln(ereignis.target.value);
+};
+
+// Bestätigungsfenster "Sind Sie sicher?". Die Funktion wartet auf die Antwort und liefert true bei "Ja", false bei "Abbrechen" oder Esc.
+function bestaetigen(titel, text, jaBeschriftung) {
+  return new Promise(fertig => {
+    const fenster = holen("bestaetigungDialog");
+    let antwort = false;
+    holen("bestaetigungTitel").textContent = titel;
+    holen("bestaetigungText").textContent = text;
+    holen("bestaetigungJa").textContent = jaBeschriftung;
+    holen("bestaetigungJa").onclick = () => { antwort = true; fenster.close(); };
+    holen("bestaetigungNein").onclick = () => fenster.close();
+    fenster.onclose = () => fertig(antwort);
+    fenster.showModal();
   });
 }
-$("opencats").onclick = () => { $("caterr").textContent = ""; fillCats(); $("catdlg").showModal(); };
-$("catclose").onclick = () => $("catdlg").close();
-$("reset").onclick = async () => {
-  const ok = await ask("Sind Sie sicher?", "Alle Ausgaben und alle eigenen Kategorien werden unwiderruflich gelöscht. Das kann nicht rückgängig gemacht werden.", "Ja, alles löschen");
-  if (!ok) return;
-  S = { exp: [], cats: DEFAULT_CATS.slice() }; save(); fillCats(); render();
+
+// Fenster zum Löschen von Kategorien öffnen und schliessen
+holen("kategorienOeffnen").onclick = () => {
+  holen("kategorienFehler").textContent = "";
+  kategorienAnzeigen();
+  holen("kategorienDialog").showModal();
+};
+holen("kategorienSchliessen").onclick = () => holen("kategorienDialog").close();
+
+// Ausgewählte Kategorien löschen (auch Standard-Kategorien). Zugehörige Ausgaben werden mitgelöscht, deshalb gibt es vorher eine Bestätigung.
+holen("kategorienLoeschen").onclick = async () => {
+  const gewaehlt = [...holen("kategorienAuswahl").querySelectorAll("input:checked")].map(kaestchen => kaestchen.value);
+  holen("kategorienFehler").textContent = "";
+  if (gewaehlt.length === 0) return holen("kategorienFehler").textContent = "Bitte mindestens eine Kategorie auswählen.";
+  if (gewaehlt.length >= daten.kategorien.length) return holen("kategorienFehler").textContent = "Mindestens eine Kategorie muss bestehen bleiben.";
+
+  const anzahlAusgaben = daten.ausgaben.filter(a => gewaehlt.includes(a.kategorie)).length;
+  let text = gewaehlt.length + " Kategorie(n) löschen?";
+  if (anzahlAusgaben > 0) text = gewaehlt.length + " Kategorie(n) löschen? Dabei werden auch " + anzahlAusgaben + " zugehörige Ausgaben gelöscht.";
+  if (!(await bestaetigen("Sind Sie sicher?", text, "Ja, löschen"))) return;
+
+  daten.kategorien = daten.kategorien.filter(k => !gewaehlt.includes(k));
+  daten.ausgaben = daten.ausgaben.filter(a => !gewaehlt.includes(a.kategorie));
+  speichern();
+  kategorienAnzeigen();
+  anzeigen();
 };
 
-// Ausgewählte Kategorien löschen (auch Standard-Kategorien)
-$("delcat").onclick = async () => {
-  const sel = [...$("catlist").querySelectorAll("input:checked")].map(i => i.value);
-  $("caterr").textContent = "";
-  if (!sel.length) return $("caterr").textContent = "Bitte mindestens eine Kategorie auswählen.";
-  if (sel.length >= S.cats.length) return $("caterr").textContent = "Mindestens eine Kategorie muss bestehen bleiben.";
-  const n = S.exp.filter(e => sel.includes(e.cat)).length;
-  const msg = n ? sel.length + " Kategorie(n) löschen? Dabei werden auch " + n + " zugehörige Ausgaben gelöscht." : sel.length + " Kategorie(n) löschen?";
-  if (!(await ask("Sind Sie sicher?", msg, "Ja, löschen"))) return;
-  S.cats = S.cats.filter(c => !sel.includes(c));
-  S.exp = S.exp.filter(e => !sel.includes(e.cat));
-  save(); fillCats(); render();
-};
+// ---------- 6. Anmeldung ----------
 
-// ---------- Start: Anmeldung ----------
-async function enter(session) {
-  user = session.user;
-  $("username").textContent = (user.user_metadata && user.user_metadata.name) || user.email;
-  try { await loadData(); } catch (e) { $("loginerr").textContent = "Daten laden fehlgeschlagen: " + e.message; return; }
-  $("loginview").hidden = true; $("app").hidden = false;
-  $("date").value = today();
-  fillCats(); render();
+// Wird nach erfolgreicher Anmeldung aufgerufen: lädt die Daten des Benutzers, blendet die Anmeldung aus und zeigt die App
+async function appStarten(sitzung) {
+  angemeldeterBenutzer = sitzung.user;
+  holen("angemeldetAls").textContent = angemeldeterBenutzer.email.split("@")[0];
+  try {
+    await laden();
+  } catch (fehler) {
+    holen("anmeldefehler").textContent = "Daten laden fehlgeschlagen: " + fehler.message;
+    return;
+  }
+  holen("anmeldeansicht").hidden = true;
+  holen("anwendung").hidden = false;
+  holen("datum").value = heute();
+  kategorienAnzeigen();
+  anzeigen();
 }
-$("loginform").addEventListener("submit", async ev => {
-  ev.preventDefault();
-  $("loginerr").textContent = "";
-  if (SUPABASE_URL.includes("DEIN-")) return $("loginerr").textContent = "Bitte zuerst SUPABASE_URL und SUPABASE_KEY im Code eintragen.";
-  // Eingabe in Kleinbuchstaben; "admin" und "test" sind Kurzformen von admin@example.com und test@example.com
-  let email = $("email").value.trim().toLowerCase();
+
+// Anmeldeformular: Benutzername und Passwort an Supabase schicken
+holen("anmeldeformular").addEventListener("submit", async ereignis => {
+  ereignis.preventDefault();
+  holen("anmeldefehler").textContent = "";
+  // "admin" und "test" sind Kurzformen von admin@example.com und test@example.com
+  let email = holen("benutzer").value.trim().toLowerCase();
   if (!email.includes("@")) email += "@example.com";
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: $("pw").value });
-  if (error) return $("loginerr").textContent = "Anmeldung fehlgeschlagen: " + error.message;
-  $("pw").value = "";
-  enter(data.session);
+  const { data, error } = await verbindung.auth.signInWithPassword({ email: email, password: holen("passwort").value });
+  if (error) return holen("anmeldefehler").textContent = "Anmeldung fehlgeschlagen: " + error.message;
+  holen("passwort").value = "";
+  appStarten(data.session);
 });
-$("logout").onclick = async () => { await sb.auth.signOut(); location.reload(); };
-sb.auth.getSession().then(({ data }) => { if (data.session) enter(data.session); });
+
+// Abmelden: Sitzung beenden und Seite neu laden
+holen("abmelden").onclick = async () => {
+  await verbindung.auth.signOut();
+  location.reload();
+};
+
+// Beim Öffnen der Seite: Ist die Sitzung vom letzten Besuch noch gültig, wird direkt angemeldet
+verbindung.auth.getSession().then(({ data }) => {
+  if (data.session) appStarten(data.session);
+});
