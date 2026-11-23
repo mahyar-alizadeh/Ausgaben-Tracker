@@ -4,7 +4,7 @@ const SUPABASE_KEY = "sb_publishable_lWUwFUhCBZbTe6KFyAEy5A_Q2kEgE0M";
 
 // Ausgaben-Tracker mit Supabase: Daten, Anzeige, Kategorien, Anmeldung
 
-// ---------- Daten ----------
+/ ---------- Daten ----------
 const DEFAULT_CATS = ["Wohnen","Krankenkasse","Steuern","Handy/Internet","Lebensmittel","Verpflegung auswärts","ÖV","Freizeit","Kleidung","Rücklagen","Abonnement","Versicherung"];
 const COLORS = ["#2563eb","#dc2626","#d97706","#7c3aed","#059669","#0891b2","#db2777","#65a30d","#64748b","#ea580c","#4f46e5","#0d9488"];
 let S = { exp: [], cats: DEFAULT_CATS.slice() };
@@ -28,7 +28,11 @@ async function loadData() {
 const $ = id => document.getElementById(id);
 const chf = n => n.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const colorOf = c => COLORS[S.cats.indexOf(c) % COLORS.length] || COLORS[8];
-const today = () => new Date().toISOString().slice(0, 10);
+// Heutiges Datum nach lokaler Zeit (JJJJ-MM-TT)
+const today = () => {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+};
 let month = today().slice(0, 7);
 let ch1, ch2;
 
@@ -144,9 +148,15 @@ $("addcat").onclick = () => {
   if (!n || S.cats.some(c => c.toLowerCase() === n.toLowerCase())) return;
   S.cats.push(n); save(); $("newcat").value = ""; fillCats(); $("cat").value = n; render();
 };
-$("prev").onclick = () => { month = shift(month, -1); render(); };
-$("next").onclick = () => { month = shift(month, 1); render(); };
-$("month").onchange = e => { if (e.target.value) { month = e.target.value; render(); } };
+// Monat wechseln: Datumsfeld springt in den gewählten Monat (aktueller Monat = heute, sonst der 1.)
+function setMonth(m) {
+  month = m;
+  $("date").value = m === today().slice(0, 7) ? today() : m + "-01";
+  render();
+}
+$("prev").onclick = () => setMonth(shift(month, -1));
+$("next").onclick = () => setMonth(shift(month, 1));
+$("month").onchange = e => { if (e.target.value) setMonth(e.target.value); };
 // Bestätigungsfenster: gibt true zurück, wenn der Benutzer bestätigt (Esc oder Abbrechen = false)
 function ask(title, text, yes) {
   return new Promise(res => {
