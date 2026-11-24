@@ -1,7 +1,7 @@
 // ---------- 1. Einstellungen und Variablen ----------
 
 const SUPABASE_URL = "https://vzhacopmsznqmcfykhxn.supabase.co";
-
+const SUPABASE_KEY = "sb_publishable_lWUwFUhCBZbTe6KFyAEy5A_Q2kEgE0M";
 
 // Die 12 Kategorien, die jeder neue Benutzer am Anfang hat
 const STANDARD_KATEGORIEN = ["Wohnen", "Krankenkasse", "Steuern", "Handy/Internet", "Lebensmittel", "Verpflegung auswärts", "ÖV", "Freizeit", "Kleidung", "Rücklagen", "Abonnement", "Versicherung"];
