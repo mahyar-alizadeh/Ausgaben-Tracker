@@ -1,0 +1,287 @@
+/* Ausgaben-Tracker: Aussehen der Seite */
+
+:root {
+  --hintergrund: #eef1f5;
+  --fläche: #ffffff;
+  --text: #101828;
+  --gedämpft: #5b6577;
+  --linie: #d9dee7;
+  --akzent: #1d4ed8;
+  --akzenttext: #ffffff;
+  --fehlerfarbe: #b42318;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--hintergrund);
+  color: var(--text);
+  font: 400 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+h1 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--gedämpft);
+}
+
+h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.gesamtbetrag {
+  font-size: clamp(2.6rem,9vw,4.6rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.03em;
+  margin: 6px 0 0;
+}
+
+.gesamtbetrag small {
+  font-size: .35em;
+  font-weight: 600;
+  color: var(--gedämpft);
+  letter-spacing: 0;
+  margin-right: .4em;
+}
+
+.navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.raster {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+@media(min-width:900px) {
+  .raster {
+    grid-template-columns: 360px 1fr;
+  }
+}
+
+.karte {
+  background: var(--fläche);
+  border: 1px solid var(--linie);
+  border-radius: 10px;
+  padding: 16px;
+  min-width: 0;
+}
+
+label {
+  display: block;
+  font-size: .85rem;
+  color: var(--gedämpft);
+  margin: 10px 0 4px;
+}
+
+input,select,button {
+  font: inherit;
+  color: inherit;
+}
+
+input,select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--linie);
+  border-radius: 6px;
+  background: var(--hintergrund);
+}
+
+button {
+  cursor: pointer;
+  padding: 9px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--linie);
+  background: var(--fläche);
+}
+
+button.hauptknopf {
+  background: var(--akzent);
+  color: var(--akzenttext);
+  border-color: var(--akzent);
+  font-weight: 600;
+  width: 100%;
+  margin-top: 14px;
+}
+
+button.unauffällig {
+  border-color: transparent;
+  color: var(--gedämpft);
+  padding: 4px 8px;
+}
+
+button:focus-visible,input:focus-visible,select:focus-visible {
+  outline: 2px solid var(--akzent);
+  outline-offset: 2px;
+}
+
+.zeile {
+  display: flex;
+  gap: 8px;
+}
+
+.zeile input {
+  flex: 1;
+}
+
+.diagramme {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+@media(min-width:640px) {
+  .diagramme {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.diagrammfeld {
+  position: relative;
+  height: 260px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--linie);
+  font-size: .92rem;
+}
+
+td.zahl,th.zahl {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.punkt {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.scrollbereich {
+  overflow-x: auto;
+}
+
+.leer {
+  color: var(--gedämpft);
+  padding: 8px 0;
+}
+
+.fehler {
+  color: var(--fehlerfarbe);
+  font-size: .85rem;
+  margin-top: 8px;
+}
+
+.spalte {
+  display: grid;
+  gap: 16px;
+}
+
+.kategorienliste {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--linie);
+  border-radius: 6px;
+  padding: 2px 10px;
+  margin-bottom: 10px;
+}
+
+.kategorienliste label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+  padding: 7px 0;
+  font-size: .95rem;
+  color: var(--text);
+}
+
+.kategorienliste input {
+  width: auto;
+}
+
+dialog {
+  border: 1px solid var(--linie);
+  border-radius: 10px;
+  background: var(--fläche);
+  color: var(--text);
+  padding: 18px;
+  width: min(440px,92vw);
+}
+
+dialog::backdrop {
+  background: rgba(0,0,0,.5);
+}
+
+dialog p {
+  margin: 0 0 14px;
+}
+
+.dialogknöpfe {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+button.gefahr {
+  background: var(--fehlerfarbe);
+  border-color: var(--fehlerfarbe);
+  color: var(--akzenttext);
+  font-weight: 600;
+}
+
+/* Hilfsklassen (ersetzen Inline-Styles im HTML) */
+.navigation input { width: auto; }
+
+/* Datums- und Monatsfelder: auf dem Handy nicht breiter als die Karte, Text links */
+input[type="date"], input[type="month"] {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 42px;
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: left;
+}
+input::-webkit-date-and-time-value { text-align: left; }
+.breit { width: 100%; }
+.abstand { margin-top: 10px; }
+.einträge { margin-top: 16px; }
+
+.anmeldung { max-width: 420px; margin: 12vh auto 0; padding: 0 16px; }
+.benutzername { color: var(--gedämpft); font-size: .9rem; }
