@@ -1,17 +1,7 @@
-// Ausgaben-Tracker
-// Aufbau dieser Datei:
-//   1. Einstellungen und Variablen
-//   2. Hilfsfunktionen (Datum, Monat, Franken)
-//   3. Speichern und Laden mit Supabase
-//   4. Anzeige (Kategorien, Tabellen, Diagramme)
-//   5. Aktionen (Formular, Kategorien, Monat wechseln, Fenster)
-//   6. Anmeldung
-
 // ---------- 1. Einstellungen und Variablen ----------
 
-// Zugangsdaten für Supabase. Es steht nur der öffentliche Schlüssel im Code, der geheime service_role-Schlüssel darf nie hier stehen.
 const SUPABASE_URL = "https://vzhacopmsznqmcfykhxn.supabase.co";
-const SUPABASE_KEY = "sb_publishable_lWUwFUhCBZbTe6KFyAEy5A_Q2kEgE0M";
+
 
 // Die 12 Kategorien, die jeder neue Benutzer am Anfang hat
 const STANDARD_KATEGORIEN = ["Wohnen", "Krankenkasse", "Steuern", "Handy/Internet", "Lebensmittel", "Verpflegung auswärts", "ÖV", "Freizeit", "Kleidung", "Rücklagen", "Abonnement", "Versicherung"];
